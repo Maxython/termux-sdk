@@ -3,10 +3,11 @@
 set -e -u
 
 export ANDROID_HOME=${ANDROID_HOME:=${PREFIX}/opt/android-sdk}
+SHELL_PATH=${SHELL_PATH:=${PREFIX}/bin/bash}
 RUN_COMMAND="$@"
-FILES_ANDROID_HOME=""
+DIRS_ANDROID_HOME=""
 if [ -z "${BINS_IGNORE_SET-}" ]; then
-	BINS_IGNORE_SET=('ld')
+	BINS_IGNORE_SET=('ld' 'lld')
 else
 	BINS_IGNORE_SET=(${BINS_IGNORE_SET})
 fi
@@ -35,6 +36,7 @@ help_message() {
 	echo 'Configured values:'
 	echo " ANDROID_HOME=${ANDROID_HOME}"
 	echo " BINS_IGNORE_SET=(${BINS_IGNORE_SET[@]})"
+	echo " SHELL_PATH=${SHELL_PATH}"
 	echo ''
 	echo 'Run with `--help` flag to get more information from `sdkmanager`.'
 	exit 0
@@ -51,18 +53,23 @@ run_sdkmanager() {
 
 set_bins() {
 	info "Setting up binaries"
-	local files=$(find $ANDROID_HOME -type f | sed 's/ /@SPACE@/g')
-	if [[ -n "$FILES_ANDROID_HOME" ]]; then
-		for file in ${FILES_ANDROID_HOME}; do
-			files=$(echo "${files}" | grep -v "$file" || echo "")
+	local dirs=$(find $ANDROID_HOME -type d -maxdepth 4 -mindepth 1 2>/dev/null)
+	if [ "$dirs" = "${DIRS_ANDROID_HOME}" ]; then
+		return
+	fi
+	if [[ -n "$DIRS_ANDROID_HOME" ]]; then
+		for dir in ${DIRS_ANDROID_HOME}; do
+			dirs=$(echo "${dirs}" | sed "s|^${dir}$||")
 		done
 	fi
-	for bin in ${files}; do
+	dirs=$(tr " " "\n" <<< $(echo $dirs | sed "s|${ANDROID_HOME}/||g") | awk -F '/' '{printf "'$ANDROID_HOME'/" $1 "\n"}' | sort -u)
+	for bin in $(find $dirs -type f -exec grep -IL . "{}" \; | sed 's/ /@SPACE@/g'); do
 		bin=${bin//@SPACE@/ }
 		if $(file "${bin}" | grep -q 'ld-linux-x86-64.so.2') && ! is_ingoring "$(basename ${bin})" && ! $(echo "${bin}" | grep -q '_orginal_bin'); then
 			echo "Set up ${bin}"
 			mv "${bin}" "${bin}_orginal_bin"
-			echo 'grun --shell BOX64_NOBANNER=1 BOX64_LOG=0 box64 '"${bin}"'_orginal_bin $@' > "${bin}"
+			echo "#!${PREFIX}/bin/bash" > "${bin}"
+			echo 'grun --shell BOX64_NOBANNER=1 BOX64_LOG=0 box64 '"${bin}"'_orginal_bin $@' >> "${bin}"
 			chmod +x "${bin}"
 		fi
 	done
@@ -76,7 +83,10 @@ fi
 if [[ -z "${RUN_COMMAND}" ]]; then
 	help_message
 fi
-FILES_ANDROID_HOME=$(find $ANDROID_HOME -type f | sed 's/ /@SPACE@/g')
+if [ ! -d ${ANDROID_HOME} ]; then
+	mkdir -p $ANDROID_HOME
+fi
+DIRS_ANDROID_HOME=$(find $ANDROID_HOME -type d -maxdepth 4 -mindepth 1 2>/dev/null)
 run_sdkmanager
 set_bins
 info "End"
