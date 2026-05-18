@@ -3,7 +3,6 @@
 set -e -u
 
 export ANDROID_HOME="${ANDROID_HOME:=${PREFIX}/opt/android-sdk}"
-export SHELL_PATH="${SHELL_PATH:=${PREFIX}/glibc/bin/bash}"
 export BOX64_PATH="${BOX64_PATH:=${PREFIX}/glibc/bin/box64}"
 RUN_COMMAND="$@"
 DIRS_ANDROID_HOME=""
@@ -38,7 +37,7 @@ else
 fi
 
 BLUE='\033[0;34m'
-Red='\033[0;31m'
+RED='\033[0;31m'
 NOCOLOR='\033[0m'
 
 info() {
@@ -57,7 +56,6 @@ help_message() {
 	echo ''
 	echo 'Configured values:'
 	echo " ANDROID_HOME=${ANDROID_HOME}"
-	echo " SHELL_PATH=${SHELL_PATH}"
 	echo " BOX64_PATH=${BOX64_PATH}"
 	echo " DO_UPDATE_SDKMANAGER=${DO_UPDATE_SDKMANAGER}"
 	echo " DIR_ORG_SRC=${DIR_ORG_SRC}"
@@ -73,11 +71,9 @@ help_message() {
 
 check_programs() {
 	info "Checking programs"
-	for prog in "${SHELL_PATH}" "${BOX64_PATH}"; do
-		if [ ! -f "${prog}" ]; then
-			error "program '${prog}' not found"
-		fi
-	done
+	if [ ! -f "${BOX64_PATH}" ]; then
+		error "program 'box64' not found"
+	fi
 	if ! type pip &> /dev/null; then
 		error "program 'pip' not found"
 	fi
@@ -148,7 +144,7 @@ set_bins() {
 				for lib in ${LIBS_CHECK[@]}; do
 					path_ld+=$(add_lib $(sed "s|/bin$|/${lib}|" <<< "${path_bin}"))$(add_lib "${path_bin}/${lib}")
 				done
-				echo "exec ${SHELL_PATH} -c \"BOX64_NOBANNER=1 BOX64_LOG=0 BOX64_LD_LIBRARY_PATH='${path_ld}' exec ${BOX64_PATH} ${path_orgbin} \$(while [ \"\$#\" != \"0\" ]; do echo -n \" '\${1}'\"; shift 1; done)\""
+				echo "eval \"BOX64_NOBANNER=1 BOX64_LOG=0 BOX64_LD_LIBRARY_PATH='${path_ld}' exec ${BOX64_PATH} ${path_orgbin} \$(while [ \"\$#\" != \"0\" ]; do echo -n \" '\${1}'\"; shift 1; done)\""
 			} > "${bin}"
 			chmod +x "${bin}"
 		fi
